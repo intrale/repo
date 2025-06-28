@@ -1,7 +1,7 @@
 name: Publicar artefactos de Ktor desde JetBrains Space
 
 on:
-  workflow_dispatch:  # Ejecución manual desde la UI de GitHub
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -12,6 +12,7 @@ jobs:
       REPO_URL: https://maven.pkg.github.com/${{ github.repository }}
       OWNER: ${{ github.repository_owner }}
       BASE_URL: https://maven.pkg.jetbrains.space/kotlin/p/wasm/experimental/io/ktor
+      VERSION: 3.0.0-wasm2
 
     steps:
       - name: Setup Maven
@@ -21,43 +22,59 @@ jobs:
 
       - name: Descargar y publicar artefactos
         run: |
-          # Lista de artefactos a publicar (artifactId, version)
           artifacts=(
-            "ktor-client-core 3.0.0-wasm2"
-            "ktor-client-json 3.0.0-wasm2"
-            "ktor-client-logging 3.0.0-wasm2"
-            "ktor-client-serialization 3.0.0-wasm2"
-            "ktor-client-content-negotiation 3.0.0-wasm2"
-            "ktor-serialization-kotlinx-json 3.0.0-wasm2"
-            "ktor-client-android 3.0.0-wasm2"
+            "ktor-client-core"
+            "ktor-client-json"
+            "ktor-client-logging"
+            "ktor-client-serialization"
+            "ktor-client-content-negotiation"
+            "ktor-serialization-kotlinx-json"
+            "ktor-client-android"
           )
 
           groupId="io.ktor"
           groupPath="io/ktor"
 
-          for artifact in "${artifacts[@]}"; do
-            IFS=' ' read -r artifactId version <<< "$artifact"
+          mkdir -p artifacts
 
-            checkUrl="https://maven.pkg.github.com/${OWNER}/platform-artifacts/${groupPath}/${artifactId}/${version}/${artifactId}-${version}.jar"
+          for artifactId in "${artifacts[@]}"; do
+            checkUrl="https://maven.pkg.github.com/${OWNER}/platform-artifacts/${groupPath}/${artifactId}/${VERSION}/${artifactId}-${VERSION}.jar"
 
-            echo "Verificando si ${artifactId} ${version} ya existe en GitHub Packages..."
+            echo "Verificando si ${artifactId} ${VERSION} ya existe en GitHub Packages..."
 
             if curl --fail -u "${OWNER}:${GITHUB_TOKEN}" -s -o /dev/null "$checkUrl"; then
-              echo "El artefacto ${artifactId} ${version} ya existe, omitiendo."
+              echo "El artefacto ${artifactId} ${VERSION} ya existe, omitiendo."
             else
-              echo "Descargando artefacto ${artifactId} ${version}..."
-              curl -L -o ${artifactId}.jar ${BASE_URL}/${artifactId}/${version}/${artifactId}-${version}.jar
-              curl -L -o ${artifactId}.pom ${BASE_URL}/${artifactId}/${version}/${artifactId}-${version}.pom
+              echo "Descargando artefacto ${artifactId} ${VERSION}..."
+              if curl --fail -L -o artifacts/${artifactId}.jar ${BASE_URL}/${artifactId}/${VERSION}/${artifactId}-${VERSION}.jar; then
+                echo "Descarga exitosa del JAR."
+              else
+                echo "Fallo la descarga del JAR. Abortando..."
+                exit 1
+              fi
 
-              echo "Publicando ${artifactId} ${version} en GitHub Packages..."
+              echo "Intentando descargar el POM..."
+              if curl --fail -L -o artifacts/${artifactId}.pom ${BASE_URL}/${artifactId}/${VERSION}/${artifactId}-${VERSION}.pom && [ -s artifacts/${artifactId}.pom ]; then
+                echo "POM descargado correctamente."
+              else
+                echo "POM no encontrado o vacío, generando uno básico..."
+                echo '<project xmlns="http://maven.apache.org/POM/4.0.0">' > artifacts/${artifactId}.pom
+                echo '  <modelVersion>4.0.0</modelVersion>' >> artifacts/${artifactId}.pom
+                echo "  <groupId>${groupId}</groupId>" >> artifacts/${artifactId}.pom
+                echo "  <artifactId>${artifactId}</artifactId>" >> artifacts/${artifactId}.pom
+                echo "  <version>${VERSION}</version>" >> artifacts/${artifactId}.pom
+                echo '</project>' >> artifacts/${artifactId}.pom
+              fi
+
+              echo "Publicando ${artifactId} ${VERSION} en GitHub Packages..."
               mvn deploy:deploy-file \
                 -Durl=${REPO_URL} \
                 -DrepositoryId=github \
                 -DgroupId=${groupId} \
                 -DartifactId=${artifactId} \
-                -Dversion=${version} \
+                -Dversion=${VERSION} \
                 -Dpackaging=jar \
-                -Dfile=${artifactId}.jar \
-                -DpomFile=${artifactId}.pom
+                -Dfile=artifacts/${artifactId}.jar \
+                -DpomFile=artifacts/${artifactId}.pom
             fi
           done

@@ -1,0 +1,63 @@
+name: Publicar artefactos de Ktor desde JetBrains Space
+
+on:
+  workflow_dispatch:  # Ejecución manual desde la UI de GitHub
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO_URL: https://maven.pkg.github.com/${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      BASE_URL: https://maven.pkg.jetbrains.space/kotlin/p/wasm/experimental/io/ktor
+
+    steps:
+      - name: Setup Maven
+        uses: s4u/setup-maven-action@v1.11.0
+        with:
+          maven-version: '3.9.6'
+
+      - name: Descargar y publicar artefactos
+        run: |
+          # Lista de artefactos a publicar (artifactId, version)
+          artifacts=(
+            "ktor-client-core 2.3.12"
+            "ktor-client-json 2.3.12"
+            "ktor-client-logging 2.3.12"
+            "ktor-client-serialization 2.3.12"
+            "ktor-client-content-negotiation 2.3.12"
+            "ktor-serialization-kotlinx-json 2.3.12"
+            "ktor-client-android 2.3.12"
+          )
+
+          groupId="io.ktor"
+          groupPath="io/ktor"
+
+          for artifact in "${artifacts[@]}"; do
+            IFS=' ' read -r artifactId version <<< "$artifact"
+
+            checkUrl="https://maven.pkg.github.com/${OWNER}/platform-artifacts/${groupPath}/${artifactId}/${version}/${artifactId}-${version}.jar"
+
+            echo "Verificando si ${artifactId} ${version} ya existe en GitHub Packages..."
+
+            if curl --fail -u "${OWNER}:${GITHUB_TOKEN}" -s -o /dev/null "$checkUrl"; then
+              echo "El artefacto ${artifactId} ${version} ya existe, omitiendo."
+            else
+              echo "Descargando artefacto ${artifactId} ${version}..."
+              curl -L -o ${artifactId}.jar ${BASE_URL}/${artifactId}/${version}/${artifactId}-${version}.jar
+              curl -L -o ${artifactId}.pom ${BASE_URL}/${artifactId}/${version}/${artifactId}-${version}.pom
+
+              echo "Publicando ${artifactId} ${version} en GitHub Packages..."
+              mvn deploy:deploy-file \
+                -Durl=${REPO_URL} \
+                -DrepositoryId=github \
+                -DgroupId=${groupId} \
+                -DartifactId=${artifactId} \
+                -Dversion=${version} \
+                -Dpackaging=jar \
+                -Dfile=${artifactId}.jar \
+                -DpomFile=${artifactId}.pom
+            fi
+          done

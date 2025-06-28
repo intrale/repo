@@ -23,13 +23,13 @@ jobs:
         run: |
           # Lista de artefactos a publicar (artifactId, version)
           artifacts=(
-            "ktor-client-core 2.3.12"
-            "ktor-client-json 2.3.12"
-            "ktor-client-logging 2.3.12"
-            "ktor-client-serialization 2.3.12"
-            "ktor-client-content-negotiation 2.3.12"
-            "ktor-serialization-kotlinx-json 2.3.12"
-            "ktor-client-android 2.3.12"
+            "ktor-client-core 3.0.0-wasm2"
+            "ktor-client-json 3.0.0-wasm2"
+            "ktor-client-logging 3.0.0-wasm2"
+            "ktor-client-serialization 3.0.0-wasm2"
+            "ktor-client-content-negotiation 3.0.0-wasm2"
+            "ktor-serialization-kotlinx-json 3.0.0-wasm2"
+            "ktor-client-android 3.0.0-wasm2"
           )
 
           groupId="io.ktor"
